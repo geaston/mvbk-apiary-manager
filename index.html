@@ -5,9 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MVBK Apiary Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <style>
     html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; }
     body { overflow: hidden; }
+    .auth-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      background: linear-gradient(135deg, #f7faf7, #eef4ee);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .auth-card {
+      width: min(420px, 100%);
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 16px;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.14);
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .auth-card h2 { margin: 0 0 8px; font-size: 22px; }
+    .auth-card p { margin: 0 0 16px; color: #555; font-size: 14px; line-height: 1.45; }
+    .auth-card input {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      box-sizing: border-box;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .auth-card button, .signout-btn {
+      border: 1px solid #1b5e20;
+      background: #1b5e20;
+      color: white;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .auth-card button { width: 100%; }
+    .auth-message { margin-top: 12px; font-size: 13px; color: #444; min-height: 18px; }
+    .signout-btn {
+      width: 100%;
+      margin: 6px 0 12px;
+      background: white;
+      color: #1b5e20;
+    }
+
     .app { display: grid; grid-template-columns: 360px 1fr; height: 100vh; width: 100%; }
     .sidebar { border-right: 1px solid #ddd; background: #fafafa; overflow-y: auto; padding: 16px; box-sizing: border-box; z-index: 1100; }
     .sidebar h1 { font-size: 20px; margin: 0 0 8px; }
@@ -37,6 +87,8 @@
     .legend-note-swatch { width: 12px; height: 12px; border-radius: 3px; display:inline-block; border:1px solid rgba(0,0,0,.2); }
     .popup-score-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; color:white; font-size:12px; font-weight:700; margin-top:6px; }
     .popup-score-dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.95); display:inline-block; }
+    .custom-bloom-draw-note { font-size:12px; color:#666; margin-top:6px; }
+    .custom-bloom-polygon { }
     .pill-note { display: inline-block; margin-top: 6px; padding: 4px 8px; border-radius: 999px; background: #f3f3f3; font-size: 11px; }
     #map { height: 100%; width: 100%; }
     .leaflet-popup-content { line-height: 1.4; min-width: 260px; }
@@ -88,6 +140,16 @@
   </style>
 </head>
 <body>
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <h2>MVBK Apiary Map</h2>
+      <p>Enter your email to receive a Supabase magic link. The map is only available to approved club member emails after sign-in.</p>
+      <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" />
+      <button id="magicLinkBtn" type="button">Send magic link</button>
+      <div id="authMessage" class="auth-message"></div>
+    </div>
+  </div>
+
   <button id="hamburgerBtn" class="hamburger-btn" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
     <span class="hamburger-lines"><span></span><span></span><span></span></span>
   </button>
@@ -97,6 +159,8 @@
     <aside id="sidebar" class="sidebar">
       <h1>MVBK Apiary Map</h1>
       <p>Apiaries with forage rings, bloom scoring, and candidate drone congregation areas.</p>
+      <button id="signOutBtn" class="signout-btn" type="button">Sign out</button>
+
 
       <div class="control-block">
         <label for="foragePreset" class="control-label">Forage preset</label>
@@ -132,7 +196,16 @@
           <input type="checkbox" id="showBloomPolygons" />
           <span>Show bloom polygons</span>
         </label>
-        <div class="small-note">Optional overlay showing the bloom-source polygons used in the scoring.</div>
+        <div class="small-note">Optional overlay showing the bloom-source polygons used in the scoring. Custom polygons use the same 0–3 bloom score scale as land cover.</div>
+      </div>
+
+      <div class="section-title">Custom bloom overrides</div>
+      <div class="control-block">
+        <div class="small-note">Use the polygon draw tool on the map to add a custom bloom area. Custom polygons replace the landcover score anywhere they overlap.</div>
+      </div>
+      <div class="control-block" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="exportCustomBloomBtn" class="btn" type="button">Export custom polygons</button>
+        <button id="clearCustomBloomBtn" class="btn" type="button">Clear custom polygons</button>
       </div>
 
       <div class="legend-box">
@@ -305,13 +378,175 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const mapCenter = [42.69, -74.40];
     const map = L.map('map').setView(mapCenter, 11);
+
+    // Supabase auth settings.
+    // Replace these two values with your own Supabase project URL and anon public key.
+    const SUPABASE_URL = 'https://pnxzuufixuaahejmwlws.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_4pKGagaeUFSMgp16qcCZzA_kTsmGSVl';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const authScreen = document.getElementById('authScreen');
+    const authEmail = document.getElementById('authEmail');
+    const magicLinkBtn = document.getElementById('magicLinkBtn');
+    const authMessage = document.getElementById('authMessage');
+    const signOutBtn = document.getElementById('signOutBtn');
+
+    let currentUser = null;
+    let mapDataHasLoaded = false;
+
+    function showAuthScreen(message = '') {
+      authScreen.style.display = 'flex';
+      if (message) authMessage.textContent = message;
+    }
+
+    function hideAuthScreen() {
+      authScreen.style.display = 'none';
+      authMessage.textContent = '';
+    }
+
+    async function sendMagicLink() {
+      const email = authEmail.value.trim();
+      if (!email) {
+        authMessage.textContent = 'Enter your email address first.';
+        return;
+      }
+
+      authMessage.textContent = 'Sending magic link...';
+
+      const { error } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: window.location.origin + window.location.pathname
+        }
+      });
+
+      if (error) {
+        console.error('Magic link error:', error);
+        authMessage.textContent = error.message;
+        return;
+      }
+
+      authMessage.textContent = 'Check your email for the login link.';
+    }
+
+    async function signOut() {
+      await supabaseClient.auth.signOut();
+      currentUser = null;
+      mapDataHasLoaded = false;
+      showAuthScreen('Signed out.');
+    }
+
+    async function isApprovedMember(email) {
+      if (!email) return false;
+
+      const normalizedEmail = email.trim().toLowerCase();
+
+      const { data, error } = await supabaseClient
+        .from('members')
+        .select('email')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Member allowlist check failed:', error);
+        authMessage.textContent = 'Could not verify membership. Contact the club admin.';
+        return false;
+      }
+
+      return !!data;
+    }
+
+    async function allowMemberOrSignOut(session) {
+      const email = session && session.user && session.user.email;
+      const allowed = await isApprovedMember(email);
+
+      if (!allowed) {
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        mapDataHasLoaded = false;
+        showAuthScreen('This email is not approved for access. Contact the club admin.');
+        return false;
+      }
+
+      currentUser = session.user;
+      hideAuthScreen();
+
+      if (!mapDataHasLoaded) {
+        mapDataHasLoaded = true;
+        loadData();
+      }
+
+      return true;
+    }
+
+    async function requireSupabaseSession() {
+      const { data, error } = await supabaseClient.auth.getSession();
+      if (error) {
+        console.error('Session check failed:', error);
+        showAuthScreen(error.message);
+        return;
+      }
+
+      const session = data.session;
+      if (!session) {
+        showAuthScreen();
+        return;
+      }
+
+      await allowMemberOrSignOut(session);
+    }
+
+    magicLinkBtn.addEventListener('click', sendMagicLink);
+    authEmail.addEventListener('keydown', event => {
+      if (event.key === 'Enter') sendMagicLink();
+    });
+    if (signOutBtn) signOutBtn.addEventListener('click', signOut);
+
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      currentUser = session ? session.user : null;
+      if (currentUser && session) {
+        await allowMemberOrSignOut(session);
+      } else {
+        showAuthScreen();
+      }
+    });
     map.createPane('countyLabels');
     map.getPane('countyLabels').style.zIndex = 650;
     map.getPane('countyLabels').style.pointerEvents = 'none';
+
+    const customBloomEditLayer = new L.FeatureGroup().addTo(map);
+
+    const drawControl = new L.Control.Draw({
+      edit: {
+        featureGroup: customBloomEditLayer,
+        edit: true,
+        remove: true
+      },
+      draw: {
+        polygon: {
+          allowIntersection: false,
+          showArea: true,
+          shapeOptions: {
+            color: '#1b5e20',
+            weight: 2,
+            dashArray: '6,4',
+            fillOpacity: 0.20
+          }
+        },
+        polyline: false,
+        rectangle: false,
+        circle: false,
+        marker: false,
+        circlemarker: false
+      }
+    });
+    map.addControl(drawControl);
 
     const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
@@ -371,6 +606,49 @@
     let bloomPolygonLayer = null;
     let countyBaseLayer = null;
     let countyLabelLayer = null;
+    let customBloomData = { type: 'FeatureCollection', features: [] };
+    const CUSTOM_BLOOM_STORAGE_KEY = 'mvbk_custom_bloom_overrides_v1';
+
+    function saveCustomBloomData() {
+      try {
+        localStorage.setItem(CUSTOM_BLOOM_STORAGE_KEY, JSON.stringify(customBloomData));
+      } catch (err) {
+        console.warn('Failed to save custom bloom overrides', err);
+      }
+    }
+
+    function loadCustomBloomData() {
+      try {
+        const raw = localStorage.getItem(CUSTOM_BLOOM_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+          customBloomData = parsed;
+        }
+      } catch (err) {
+        console.warn('Failed to load custom bloom overrides', err);
+      }
+    }
+
+    function refreshCustomBloomEditLayer() {
+      customBloomEditLayer.clearLayers();
+      (customBloomData.features || []).forEach(feature => {
+        try {
+          const layer = L.geoJSON(feature, {
+            style: {
+              color: '#1b5e20',
+              weight: 2,
+              dashArray: '6,4',
+              fillOpacity: 0.20
+            }
+          });
+          layer.eachLayer(l => customBloomEditLayer.addLayer(l));
+        } catch (err) {
+          console.warn('Failed to load custom bloom feature into edit layer', err);
+        }
+      });
+    }
+    
     const countyLabelMinZoom = 12;
 
     function getCountyLabelStyleForZoom(zoom) {
@@ -414,6 +692,8 @@
     const showMiteBiterInfluenceCheckbox = document.getElementById('showMiteBiterInfluence');
     const miteBiterInfluenceRadiusSelect = document.getElementById('miteBiterInfluenceRadius');
     const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    const exportCustomBloomBtn = document.getElementById('exportCustomBloomBtn');
+    const clearCustomBloomBtn = document.getElementById('clearCustomBloomBtn');
     const sidebar = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -432,8 +712,8 @@
     function getRuleForFeature(feature) {
       const props = feature.properties || {};
 
-      if (typeof props.bee_score === 'number') {
-        const raw = props.bee_score;
+      if (typeof props.bloom_score === 'number') {
+        const raw = props.bloom_score;
         const clamped = Math.max(0, Math.min(3, raw));
         const label = props.forage_type || props.class_name || props.landCoverClass || 'forage area';
         return { spring: clamped, summer: clamped, fall: clamped, overall: clamped, label: label };
@@ -492,8 +772,8 @@
 
     function getScoreForFeature(feature) {
       const props = feature.properties || {};
-      if (typeof props.bee_score === 'number') {
-        return Math.max(0, Math.min(3, props.bee_score));
+      if (typeof props.bloom_score === 'number') {
+        return Math.max(0, Math.min(3, props.bloom_score));
       }
       const rule = getRuleForFeature(feature);
       return rule[currentSeason] ?? rule.overall ?? 0;
@@ -570,7 +850,122 @@
       '</div>';
     }
 
-    function updateCountyLabelSizes() {
+    
+    function createCustomBloomStyle(feature) {
+      const score = getScoreForFeature(feature);
+      const color = scoreToColor(score);
+      return {
+        color: color,
+        weight: 2,
+        dashArray: '6,4',
+        fillColor: color,
+        fillOpacity: 0.30
+      };
+    }
+
+    function normalizeCustomBloomFeature(feature) {
+      const props = feature.properties || {};
+      const rawScore = Number(props.bloom_score);
+      const clampedScore = Number.isFinite(rawScore) ? Math.max(0, Math.min(3, rawScore)) : 1.5;
+      return {
+        type: 'Feature',
+        properties: {
+          source: 'custom',
+          name: props.name || props.forage_type || props.class_name || '',
+          forage_type: props.forage_type || props.class_name || 'custom override',
+          class_name: props.class_name || props.forage_type || 'custom override',
+          bloom_score: clampedScore,
+          notes: props.notes || ''
+        },
+        geometry: feature.geometry
+      };
+    }
+
+    function saveCustomBloomPolygons() {
+      try {
+        const geojson = customBloomEditLayer.toGeoJSON();
+        customBloomData = {
+          type: 'FeatureCollection',
+          features: (geojson.features || []).map(normalizeCustomBloomFeature)
+        };
+        localStorage.setItem(CUSTOM_BLOOM_STORAGE_KEY, JSON.stringify(customBloomData));
+      } catch (err) {
+        console.warn('Could not save custom bloom polygons', err);
+      }
+    }
+
+    function loadCustomBloomPolygons() {
+      try {
+        const raw = localStorage.getItem(CUSTOM_BLOOM_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.type !== 'FeatureCollection' || !Array.isArray(parsed.features)) return;
+        customBloomData = {
+          type: 'FeatureCollection',
+          features: parsed.features.map(normalizeCustomBloomFeature)
+        };
+        customBloomEditLayer.clearLayers();
+        L.geoJSON(customBloomData, {
+          style: createCustomBloomStyle,
+          onEachFeature: function(feature, layer) {
+            layer.feature = normalizeCustomBloomFeature(feature);
+            customBloomEditLayer.addLayer(layer);
+          }
+        });
+      } catch (err) {
+        console.warn('Could not load custom bloom polygons', err);
+      }
+    }
+
+    function promptForCustomBloomProperties(existingProps) {
+      const base = existingProps || {};
+      const forageType = window.prompt('Custom bloom type / forage type:', base.forage_type || base.class_name || 'custom override');
+      if (forageType === null) return null;
+      const scoreInput = window.prompt('Bloom score (0–3, matching land cover) (0 to 3):', base.bloom_score != null ? String(base.bloom_score) : '2');
+      if (scoreInput === null) return null;
+      const parsed = Number(scoreInput);
+      if (!Number.isFinite(parsed)) {
+        alert('Bloom score must be a number from 0 to 3.');
+        return null;
+      }
+      const clamped = Math.max(0, Math.min(3, parsed));
+      const name = window.prompt('Optional name:', base.name || '') || '';
+      const notes = window.prompt('Optional notes:', base.notes || '') || '';
+      return {
+        source: 'custom',
+        forage_type: forageType,
+        class_name: forageType,
+        bloom_score: clamped,
+        name: name,
+        notes: notes
+      };
+    }
+
+    function getAllBloomFeatures() {
+      return [
+        ...(bloomAreaData.features || []),
+        ...(customBloomData.features || [])
+      ];
+    }
+
+    function getFeatureDisplayLabel(feature) {
+      const props = feature.properties || {};
+      return props.name || props.forage_type || props.class_name || props.landcover || 'Unnamed bloom area';
+    }
+
+    function unionFeatures(features) {
+      let current = null;
+      for (const feat of features) {
+        try {
+          current = current ? turf.union(current, feat) : feat;
+        } catch (err) {
+          console.warn('Union failed for custom override geometry', err);
+        }
+      }
+      return current;
+    }
+
+function updateCountyLabelSizes() {
       if (!countyLabelLayer) return;
       countyLabelLayer.eachLayer(layer => {
         const el = layer.getElement ? layer.getElement() : null;
@@ -649,7 +1044,9 @@
       if (!showBloomPolygons) return;
       if (map.getZoom() < landcoverZoomThreshold) return;
 
-      bloomPolygonLayer = L.geoJSON(bloomAreaData, {
+      bloomPolygonLayer = L.layerGroup();
+
+      const baseLayer = L.geoJSON(bloomAreaData, {
         style: feature => {
           const score = getScoreForFeature(feature);
           const color = scoreToColor(score);
@@ -666,19 +1063,34 @@
           const seasonName = currentSeason.charAt(0).toUpperCase() + currentSeason.slice(1);
           layer.bindPopup(
             '<div>' +
-              '<div class="apiary-title">' + (
-                feature.properties.name ||
-                feature.properties.forage_type ||
-                feature.properties.class_name ||
-                feature.properties.landcover ||
-                'Bloom area'
-              ) + '</div>' +
+              '<div class="apiary-title">' + getFeatureDisplayLabel(feature) + '</div>' +
               '<div><strong>Forage type:</strong> ' + rule.label + '</div>' +
               '<div><strong>' + seasonName + ' bloom potential:</strong> ' + scoreToLabel(score) + '</div>' +
             '</div>'
           );
         }
-      }).addTo(map);
+      });
+
+      const customLayer = L.geoJSON(customBloomData, {
+        style: createCustomBloomStyle,
+        onEachFeature: (feature, layer) => {
+          const rule = getRuleForFeature(feature);
+          const score = getScoreForFeature(feature);
+          const seasonName = currentSeason.charAt(0).toUpperCase() + currentSeason.slice(1);
+          layer.bindPopup(
+            '<div>' +
+              '<div class="apiary-title">' + getFeatureDisplayLabel(feature) + '</div>' +
+              '<div><strong>Custom override:</strong> Yes</div>' +
+              '<div><strong>Forage type:</strong> ' + rule.label + '</div>' +
+              '<div><strong>' + seasonName + ' bloom potential:</strong> ' + scoreToLabel(score) + '</div>' +
+            '</div>'
+          );
+        }
+      });
+
+      bloomPolygonLayer.addLayer(baseLayer);
+      bloomPolygonLayer.addLayer(customLayer);
+      bloomPolygonLayer.addTo(map);
     }
 
     function summarizeBloomOverlap(apiary, forageRadiusMeters) {
@@ -692,38 +1104,66 @@
       let weightedScoreSum = 0;
       let totalOverlapArea = 0;
 
-      bloomAreaData.features.forEach(feature => {
+      const customIntersections = [];
+      (customBloomData.features || []).forEach(feature => {
         try {
           const intersection = turf.intersect(circle, feature);
           if (!intersection) return;
+          const areaSqKm = turf.area(intersection) / 1000000;
+          if (areaSqKm <= 0) return;
+
+          const rule = getRuleForFeature(feature);
+          const score = getScoreForFeature(feature);
+          const typeLabel = getFeatureDisplayLabel(feature);
+
+          totalOverlapArea += areaSqKm;
+          weightedScoreSum += score * areaSqKm;
+          overlaps.push({ name: typeLabel, classLabel: rule.label, score, overlapAreaSqKm: areaSqKm });
+
+          if (!typeBuckets[typeLabel]) {
+            typeBuckets[typeLabel] = { typeLabel, score, totalAreaSqKm: 0 };
+          }
+          typeBuckets[typeLabel].totalAreaSqKm += areaSqKm;
+          customIntersections.push(intersection);
+        } catch (err) {
+          console.warn('Skipping custom overlap calc', err);
+        }
+      });
+
+      const customUnion = unionFeatures(customIntersections);
+
+      (bloomAreaData.features || []).forEach(feature => {
+        try {
+          let intersection = turf.intersect(circle, feature);
+          if (!intersection) return;
+
+          if (customUnion) {
+            try {
+              const diff = turf.difference(intersection, customUnion);
+              if (!diff) return;
+              intersection = diff;
+            } catch (err) {
+              console.warn('Difference failed for base bloom feature', err);
+            }
+          }
 
           const overlapAreaSqKm = turf.area(intersection) / 1000000;
           if (overlapAreaSqKm <= 0) return;
 
           const rule = getRuleForFeature(feature);
           const score = getScoreForFeature(feature);
-          const typeLabel = feature.properties.name || feature.properties.forage_type || feature.properties.class_name || feature.properties.landcover || 'Unnamed bloom area';
+          const typeLabel = getFeatureDisplayLabel(feature);
 
           totalOverlapArea += overlapAreaSqKm;
           weightedScoreSum += score * overlapAreaSqKm;
-
-          overlaps.push({
-            name: typeLabel,
-            classLabel: rule.label,
-            score,
-            overlapAreaSqKm
-          });
+          overlaps.push({ name: typeLabel, classLabel: rule.label, score, overlapAreaSqKm });
 
           if (!typeBuckets[typeLabel]) {
-            typeBuckets[typeLabel] = {
-              typeLabel,
-              score,
-              totalAreaSqKm: 0
-            };
+            typeBuckets[typeLabel] = { typeLabel, score, totalAreaSqKm: 0 };
           }
           typeBuckets[typeLabel].totalAreaSqKm += overlapAreaSqKm;
         } catch (err) {
-          console.warn('Skipping overlap calc for feature:', feature.properties && (feature.properties.name || feature.properties.forage_type), err);
+          console.warn('Skipping overlap calc for feature:', getFeatureDisplayLabel(feature), err);
         }
       });
 
@@ -1100,7 +1540,10 @@
         loadedApiaries = apiaries;
         bloomAreaData = bloomGeoJson;
         countiesGeoData = countiesGeoJson;
+        loadCustomBloomPolygons();
         renderCountyBaseLayer();
+        loadCustomBloomData();
+        refreshCustomBloomEditLayer();
         populateOwnerFilter();
         populateCountyFilter();
         refreshView();
@@ -1205,7 +1648,65 @@
       }
     });
 
-    loadData();
+
+    map.on(L.Draw.Event.CREATED, function(event) {
+      const layer = event.layer;
+      const props = promptForCustomBloomProperties();
+      if (!props) return;
+      const feature = normalizeCustomBloomFeature(layer.toGeoJSON());
+      feature.properties = props;
+      layer.feature = feature;
+      layer.setStyle(createCustomBloomStyle(feature));
+      layer.bindPopup(
+        '<div>' +
+          '<div class="apiary-title">' + getFeatureDisplayLabel(feature) + '</div>' +
+          '<div><strong>Custom override:</strong> Yes</div>' +
+          '<div><strong>Forage type:</strong> ' + feature.properties.forage_type + '</div>' +
+          '<div><strong>Bloom potential:</strong> ' + scoreToLabel(feature.properties.bloom_score) + '</div>' +
+        '</div>'
+      );
+      customBloomEditLayer.addLayer(layer);
+      saveCustomBloomPolygons();
+      refreshView();
+    });
+
+    map.on(L.Draw.Event.EDITED, function(event) {
+      event.layers.eachLayer(function(layer) {
+        if (layer.feature) {
+          layer.feature = normalizeCustomBloomFeature(layer.toGeoJSON());
+        }
+      });
+      saveCustomBloomPolygons();
+      refreshView();
+    });
+
+    map.on(L.Draw.Event.DELETED, function() {
+      saveCustomBloomPolygons();
+      refreshView();
+    });
+
+    exportCustomBloomBtn.addEventListener('click', () => {
+      saveCustomBloomPolygons();
+      const blob = new Blob([JSON.stringify(customBloomData, null, 2)], { type: 'application/geo+json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'custom-bloom-overrides.geojson';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    clearCustomBloomBtn.addEventListener('click', () => {
+      if (!window.confirm('Clear all custom bloom override polygons?')) return;
+      customBloomEditLayer.clearLayers();
+      let customBloomData = { type: 'FeatureCollection', features: [] };
+      localStorage.removeItem(CUSTOM_BLOOM_STORAGE_KEY);
+      refreshView();
+    });
+
+    requireSupabaseSession();
   </script>
 </body>
 </html>
