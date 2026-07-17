@@ -159,7 +159,7 @@
   <div class="app">
     <aside id="sidebar" class="sidebar">
       <h1>MVBK Apiary Map</h1>
-      <p>Apiaries with forage rings, bloom scoring, and candidate drone congregation areas.</p>
+      <p>Apiaries with forage rings, health information, and county context.</p>
       <button id="signOutBtn" class="signout-btn" type="button">Sign out</button>
 
 
@@ -216,8 +216,8 @@
         <div class="legend-row"><span class="legend-swatch" style="background:#d32f2f;"></span> Poor bloom potential</div>
       </div>
 
-      <div class="section-title">Drone congregation areas</div>
-      <div class="control-block">
+      <div class="section-title dca-feature">Drone congregation areas</div>
+      <div class="control-block dca-feature">
         <label class="toggle-row">
           <input type="checkbox" id="showDcaLayer" checked />
           <span>Show candidate DCA hotspots</span>
@@ -225,7 +225,7 @@
         <div class="small-note">These are likely congregation zones based on terrain pattern, not confirmed DCAs.</div>
       </div>
 
-      <div class="control-block">
+      <div class="control-block dca-feature">
         <label for="dcaFilter" class="control-label">DCA confidence</label>
         <select id="dcaFilter">
           <option value="">Any confidence</option>
@@ -234,7 +234,7 @@
         </select>
       </div>
 
-      <div class="legend-box">
+      <div class="legend-box dca-feature">
         <div class="legend-row"><span class="legend-swatch" style="background:#7b1fa2;"></span> High-confidence candidate DCA</div>
         <div class="legend-row"><span class="legend-swatch" style="background:#ab47bc;"></span> Medium-confidence candidate DCA</div>
         <div class="pill-note">Look for open saddles, clearings, field gaps, and edges away from obstacles.</div>
@@ -386,6 +386,7 @@
     // V1 feature flags. Landcover and bloom analysis are preserved for a future release,
     // but are disabled so the app does not fetch, draw, or calculate landcover data.
     const ENABLE_LANDCOVER_FEATURES = false;
+    const ENABLE_DCA_FEATURES = false;
 
     const mapCenter = [42.69, -74.40];
     const map = L.map('map').setView(mapCenter, 11);
@@ -718,6 +719,9 @@
 
     if (!ENABLE_LANDCOVER_FEATURES) {
       document.querySelectorAll('.bloom-feature').forEach(el => el.classList.add('feature-disabled'));
+    }
+    if (!ENABLE_DCA_FEATURES) {
+      document.querySelectorAll('.dca-feature').forEach(el => el.classList.add('feature-disabled'));
     }
 
     let currentForagePresetMeters = Number(foragePresetSelect.value);
@@ -1299,13 +1303,14 @@ function updateCountyLabelSizes() {
     }
 
     function getFilteredDcas() {
+      if (!ENABLE_DCA_FEATURES) return [];
       const conf = dcaFilter.value;
       return dcaHotspots.filter(dca => !conf || dca.confidence === conf);
     }
 
     function renderDcaLayer() {
       clearDcaMarkers();
-      if (!showDcaLayer) return;
+      if (!ENABLE_DCA_FEATURES || !showDcaLayer) return;
 
       getFilteredDcas().forEach(dca => {
         const color = getDcaColor(dca.confidence);
@@ -1380,7 +1385,7 @@ function updateCountyLabelSizes() {
 
       filtered.forEach(({ apiary, forageRadiusMeters, bloomSummary }) => {
         const color = getMarkerColor(apiary);
-        const nearestDca = getNearestDca(apiary);
+        const nearestDca = ENABLE_DCA_FEATURES ? getNearestDca(apiary) : null;
 
         const bloomTopHtml = bloomSummary.groupedTypes.length
           ? '<table class="popup-mini-table">' +
@@ -1411,7 +1416,7 @@ function updateCountyLabelSizes() {
             '<div><strong>Honey produced:</strong> ' + ((apiary.honeyProducedLbs == null) ? 'N/A' : apiary.honeyProducedLbs + ' lbs') + '</div>' +
             '<div><strong>Forage radius:</strong> ' + formatRadiusLabel(forageRadiusMeters) + '</div>' +
 
-            '<div><strong>Nearest candidate DCA:</strong> ' + (nearestDca ? nearestDca.name + ' (' + (nearestDca.distanceMeters / 1000).toFixed(1) + ' km)' : 'None') + '</div>' +
+            (ENABLE_DCA_FEATURES ? '<div><strong>Nearest candidate DCA:</strong> ' + (nearestDca ? nearestDca.name + ' (' + (nearestDca.distanceMeters / 1000).toFixed(1) + ' km)' : 'None') + '</div>' : '') +
 
             '<div style="margin-top:8px;"><strong>Notes:</strong> ' + (apiary.notes || 'None') + '</div>' +
           '</div>';
@@ -1458,7 +1463,7 @@ function updateCountyLabelSizes() {
           '</div>' +
           '<div class="apiary-submeta">' +
 
-            '<div><strong>Nearest candidate DCA:</strong> ' + (nearestDca ? nearestDca.name : 'None') + '</div>' +
+            (ENABLE_DCA_FEATURES ? '<div><strong>Nearest candidate DCA:</strong> ' + (nearestDca ? nearestDca.name : 'None') + '</div>' : '') +
           '</div>';
 
         card.addEventListener('click', () => {
@@ -1477,7 +1482,7 @@ function updateCountyLabelSizes() {
       const boundsLayers = [];
       if (markers.length > 0) boundsLayers.push(...markers);
       if (showForageRings && forageCircles.length > 0) boundsLayers.push(...forageCircles);
-      if (showDcaLayer && dcaMarkers.length > 0) boundsLayers.push(...dcaMarkers);
+      if (ENABLE_DCA_FEATURES && showDcaLayer && dcaMarkers.length > 0) boundsLayers.push(...dcaMarkers);
       if (showBloomPolygons && bloomPolygonLayer) boundsLayers.push(bloomPolygonLayer);
       if (showMiteBiterInfluence && miteBiterInfluenceCircles.length > 0) boundsLayers.push(...miteBiterInfluenceCircles);
 
@@ -1534,7 +1539,7 @@ function updateCountyLabelSizes() {
     function refreshView() {
       buildApiarySummaries();
       if (ENABLE_LANDCOVER_FEATURES) renderBloomPolygonLayer();
-      renderDcaLayer();
+      if (ENABLE_DCA_FEATURES) renderDcaLayer();
       renderMiteBiterInfluence();
       renderFilteredApiaries();
     }
@@ -1660,7 +1665,7 @@ function updateCountyLabelSizes() {
       refreshView();
     });
 
-    showDcaLayerCheckbox.addEventListener('change', () => {
+    if (ENABLE_DCA_FEATURES) showDcaLayerCheckbox.addEventListener('change', () => {
       showDcaLayer = showDcaLayerCheckbox.checked;
       renderDcaLayer();
       renderFilteredApiaries();
@@ -1697,7 +1702,7 @@ function updateCountyLabelSizes() {
       if (ENABLE_LANDCOVER_FEATURES) renderBloomPolygonLayer();
     });
 
-    dcaFilter.addEventListener('change', () => {
+    if (ENABLE_DCA_FEATURES) dcaFilter.addEventListener('change', () => {
       renderDcaLayer();
       renderFilteredApiaries();
     });
@@ -1720,7 +1725,7 @@ function updateCountyLabelSizes() {
       miteThresholdFilter.value = '';
       miteBiterFilter.value = '';
       dcaFilter.value = '';
-      renderDcaLayer();
+      if (ENABLE_DCA_FEATURES) renderDcaLayer();
       renderFilteredApiaries();
     });
 
