@@ -7,5 +7,6 @@ window.MVBK_CONFIG = Object.freeze({
 
   // Features preserved for future releases but disabled in V1.
   ENABLE_LANDCOVER_FEATURES: false,
-  ENABLE_DCA_FEATURES: false
+  ENABLE_DCA_FEATURES: false,
+  ENABLE_APIARY_JSON_FALLBACK: false
 });
