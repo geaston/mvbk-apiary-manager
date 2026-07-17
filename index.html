@@ -88,6 +88,7 @@
     .popup-score-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; color:white; font-size:12px; font-weight:700; margin-top:6px; }
     .popup-score-dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.95); display:inline-block; }
     .custom-bloom-draw-note { font-size:12px; color:#666; margin-top:6px; }
+    .feature-disabled { display: none !important; }
     .custom-bloom-polygon { }
     .pill-note { display: inline-block; margin-top: 6px; padding: 4px 8px; border-radius: 999px; background: #f3f3f3; font-size: 11px; }
     #map { height: 100%; width: 100%; }
@@ -179,8 +180,8 @@
         </label>
       </div>
 
-      <div class="section-title">Bloom scoring</div>
-      <div class="control-block">
+      <div class="section-title bloom-feature">Bloom scoring</div>
+      <div class="control-block bloom-feature">
         <label for="seasonSelect" class="control-label">Bloom season</label>
         <select id="seasonSelect">
           <option value="spring">Spring</option>
@@ -191,7 +192,7 @@
         <div class="small-note">Scores come from the amount of each land-cover polygon that overlaps the forage ring.</div>
       </div>
 
-      <div class="control-block">
+      <div class="control-block bloom-feature">
         <label class="toggle-row">
           <input type="checkbox" id="showBloomPolygons" />
           <span>Show bloom polygons</span>
@@ -199,16 +200,16 @@
         <div class="small-note">Optional overlay showing the bloom-source polygons used in the scoring. Custom polygons use the same 0–3 bloom score scale as land cover.</div>
       </div>
 
-      <div class="section-title">Custom bloom overrides</div>
-      <div class="control-block">
+      <div class="section-title bloom-feature">Custom bloom overrides</div>
+      <div class="control-block bloom-feature">
         <div class="small-note">Use the polygon draw tool on the map to add a custom bloom area. Custom polygons replace the landcover score anywhere they overlap.</div>
       </div>
-      <div class="control-block" style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div class="control-block bloom-feature" style="display:flex; gap:8px; flex-wrap:wrap;">
         <button id="exportCustomBloomBtn" class="btn" type="button">Export custom polygons</button>
         <button id="clearCustomBloomBtn" class="btn" type="button">Clear custom polygons</button>
       </div>
 
-      <div class="legend-box">
+      <div class="legend-box bloom-feature">
         <div class="legend-row"><span class="legend-swatch" style="background:#2e7d32;"></span> High bloom potential</div>
         <div class="legend-row"><span class="legend-swatch" style="background:#f9a825;"></span> Medium bloom potential</div>
         <div class="legend-row"><span class="legend-swatch" style="background:#9e9e9e;"></span> Low bloom potential</div>
@@ -291,7 +292,7 @@
       </div>
 
       <div class="filter-grid">
-        <div class="control-block">
+        <div class="control-block bloom-feature">
           <label for="bloomFilter" class="control-label">Bloom in ring</label>
           <select id="bloomFilter">
             <option value="">Any bloom rating</option>
@@ -382,6 +383,10 @@
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    // V1 feature flags. Landcover and bloom analysis are preserved for a future release,
+    // but are disabled so the app does not fetch, draw, or calculate landcover data.
+    const ENABLE_LANDCOVER_FEATURES = false;
+
     const mapCenter = [42.69, -74.40];
     const map = L.map('map').setView(mapCenter, 11);
 
@@ -553,7 +558,9 @@
         circlemarker: false
       }
     });
-    map.addControl(drawControl);
+    if (ENABLE_LANDCOVER_FEATURES) {
+      map.addControl(drawControl);
+    }
 
     const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
@@ -708,6 +715,10 @@
     const sidebar = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     const hamburgerBtn = document.getElementById('hamburgerBtn');
+
+    if (!ENABLE_LANDCOVER_FEATURES) {
+      document.querySelectorAll('.bloom-feature').forEach(el => el.classList.add('feature-disabled'));
+    }
 
     let currentForagePresetMeters = Number(foragePresetSelect.value);
     let showForageRings = showForageRingsCheckbox.checked;
@@ -1220,7 +1231,17 @@ function updateCountyLabelSizes() {
         .filter(apiary => typeof apiary.lat === 'number' && typeof apiary.lng === 'number')
         .map(apiary => {
           const forageRadiusMeters = typeof apiary.forageRadiusMeters === 'number' ? apiary.forageRadiusMeters : currentForagePresetMeters;
-          const bloomSummary = summarizeBloomOverlap(apiary, forageRadiusMeters);
+          const bloomSummary = ENABLE_LANDCOVER_FEATURES
+            ? summarizeBloomOverlap(apiary, forageRadiusMeters)
+            : {
+                averageScore: 0,
+                overallLabel: 'Disabled',
+                overlapCount: 0,
+                totalOverlapAreaSqKm: 0,
+                ringAreaSqKm: getRingAreaSqKm(forageRadiusMeters),
+                topAreas: [],
+                groupedTypes: []
+              };
           return { apiary, forageRadiusMeters, bloomSummary };
         });
     }
@@ -1262,7 +1283,7 @@ function updateCountyLabelSizes() {
         const matchesOwner = !owner || apiary.owner === owner;
         const matchesStatus = !status || apiary.status === status;
         const matchesCounty = !county || getCountyNameForApiary(apiary) === county;
-        const matchesBloom = !bloom || bloomSummary.overallLabel === bloom;
+        const matchesBloom = !ENABLE_LANDCOVER_FEATURES || !bloom || bloomSummary.overallLabel === bloom;
         const matchesType = !type || apiary.type === type;
         const matchesMinHives = minHives === null || Number(apiary.hives || 0) >= minHives;
         const matchesTreated = !treated || (treated === 'yes' ? apiary.treated === true : apiary.treated === false);
@@ -1389,13 +1410,9 @@ function updateCountyLabelSizes() {
             '<div><strong>Treated:</strong> ' + ((apiary.treated === true) ? 'Yes' : (apiary.treated === false ? 'No' : 'N/A')) + '</div>' +
             '<div><strong>Honey produced:</strong> ' + ((apiary.honeyProducedLbs == null) ? 'N/A' : apiary.honeyProducedLbs + ' lbs') + '</div>' +
             '<div><strong>Forage radius:</strong> ' + formatRadiusLabel(forageRadiusMeters) + '</div>' +
-            '<div><strong>' + currentSeason.charAt(0).toUpperCase() + currentSeason.slice(1) + ' bloom in ring:</strong> ' + bloomSummary.overallLabel + '</div>' +
-            
-            '<div><strong>Overlapping bloom areas:</strong> ' + bloomSummary.overlapCount + '</div>' +
-            '<div><strong>Total overlap:</strong> ' + formatAreaLabel(bloomSummary.totalOverlapAreaSqKm) + '</div>' +
+
             '<div><strong>Nearest candidate DCA:</strong> ' + (nearestDca ? nearestDca.name + ' (' + (nearestDca.distanceMeters / 1000).toFixed(1) + ' km)' : 'None') + '</div>' +
-            '<div style="margin-top:8px;"><strong>Forage ring by type:</strong></div>' +
-            '<div>' + bloomTopHtml + '</div>' +
+
             '<div style="margin-top:8px;"><strong>Notes:</strong> ' + (apiary.notes || 'None') + '</div>' +
           '</div>';
 
@@ -1440,9 +1457,7 @@ function updateCountyLabelSizes() {
             '<div>' + (apiary.notes || '') + '</div>' +
           '</div>' +
           '<div class="apiary-submeta">' +
-            '<div><strong>' + currentSeason.charAt(0).toUpperCase() + currentSeason.slice(1) + ' bloom in ring:</strong> ' + bloomSummary.overallLabel + '</div>' +
-            '<div><strong>Overlap count:</strong> ' + bloomSummary.overlapCount + '</div>' +
-            '<div><strong>Total overlap:</strong> ' + formatAreaLabel(bloomSummary.totalOverlapAreaSqKm) + '</div>' +
+
             '<div><strong>Nearest candidate DCA:</strong> ' + (nearestDca ? nearestDca.name : 'None') + '</div>' +
           '</div>';
 
@@ -1518,7 +1533,7 @@ function updateCountyLabelSizes() {
 
     function refreshView() {
       buildApiarySummaries();
-      renderBloomPolygonLayer();
+      if (ENABLE_LANDCOVER_FEATURES) renderBloomPolygonLayer();
       renderDcaLayer();
       renderMiteBiterInfluence();
       renderFilteredApiaries();
@@ -1590,48 +1605,41 @@ function updateCountyLabelSizes() {
 
     async function loadData() {
       try {
-        const [apiaryResponse, bloomResponse, countiesGeoJson] = await Promise.all([
+        const [apiaryResponse, countiesGeoJson] = await Promise.all([
           fetch('./apiaries.json'),
-          fetch(bloomGeoJsonPath),
           loadCountiesFromSupabase()
         ]);
 
         if (!apiaryResponse.ok) {
           throw new Error('HTTP ' + apiaryResponse.status + ' while loading apiaries.json');
         }
-        if (!bloomResponse.ok) {
-          throw new Error('HTTP ' + bloomResponse.status + ' while loading ' + bloomGeoJsonPath);
-        }
 
         const apiaries = await apiaryResponse.json();
-        const bloomGeoJson = await bloomResponse.json();
 
         if (!Array.isArray(apiaries)) {
           throw new Error('apiaries.json must contain a JSON array.');
-        }
-        if (!bloomGeoJson || bloomGeoJson.type !== 'FeatureCollection' || !Array.isArray(bloomGeoJson.features)) {
-          throw new Error('Bloom GeoJSON must be a FeatureCollection.');
         }
         if (!countiesGeoJson || countiesGeoJson.type !== 'FeatureCollection' || !Array.isArray(countiesGeoJson.features)) {
           throw new Error('County database query must produce a GeoJSON FeatureCollection.');
         }
 
         loadedApiaries = apiaries;
-        bloomAreaData = bloomGeoJson;
+        bloomAreaData = { type: 'FeatureCollection', features: [] };
         countiesGeoData = countiesGeoJson;
 
-        loadCustomBloomPolygons();
+        if (ENABLE_LANDCOVER_FEATURES) {
+          loadCustomBloomPolygons();
+          loadCustomBloomData();
+          refreshCustomBloomEditLayer();
+        }
         renderCountyBaseLayer();
-        loadCustomBloomData();
-        refreshCustomBloomEditLayer();
         populateOwnerFilter();
         populateCountyFilter();
         refreshView();
       } catch (error) {
         console.error('Failed to load map data:', error);
         showError(
-          'Could not load the map data. Confirm apiaries.json and landcover.geojson are available, ' +
-          'and that the Supabase counties table and RLS policy are configured. ' +
+          'Could not load the map data. Confirm apiaries.json is available and that the Supabase counties table and RLS policy are configured. ' +
           'Details: ' + error.message
         );
       }
@@ -1647,7 +1655,7 @@ function updateCountyLabelSizes() {
       renderFilteredApiaries();
     });
 
-    seasonSelect.addEventListener('change', () => {
+    if (ENABLE_LANDCOVER_FEATURES) seasonSelect.addEventListener('change', () => {
       currentSeason = seasonSelect.value;
       refreshView();
     });
@@ -1671,7 +1679,7 @@ function updateCountyLabelSizes() {
       renderFilteredApiaries();
     });
 
-    showBloomPolygonsCheckbox.addEventListener('change', () => {
+    if (ENABLE_LANDCOVER_FEATURES) showBloomPolygonsCheckbox.addEventListener('change', () => {
       showBloomPolygons = showBloomPolygonsCheckbox.checked;
       renderBloomPolygonLayer();
       renderFilteredApiaries();
@@ -1686,7 +1694,7 @@ function updateCountyLabelSizes() {
           map.removeLayer(countyLabelLayer);
         }
       }
-      renderBloomPolygonLayer();
+      if (ENABLE_LANDCOVER_FEATURES) renderBloomPolygonLayer();
     });
 
     dcaFilter.addEventListener('change', () => {
@@ -1733,7 +1741,7 @@ function updateCountyLabelSizes() {
     });
 
 
-    map.on(L.Draw.Event.CREATED, function(event) {
+    if (ENABLE_LANDCOVER_FEATURES) map.on(L.Draw.Event.CREATED, function(event) {
       const layer = event.layer;
       const props = promptForCustomBloomProperties();
       if (!props) return;
@@ -1754,7 +1762,7 @@ function updateCountyLabelSizes() {
       refreshView();
     });
 
-    map.on(L.Draw.Event.EDITED, function(event) {
+    if (ENABLE_LANDCOVER_FEATURES) map.on(L.Draw.Event.EDITED, function(event) {
       event.layers.eachLayer(function(layer) {
         if (layer.feature) {
           layer.feature = normalizeCustomBloomFeature(layer.toGeoJSON());
@@ -1764,12 +1772,12 @@ function updateCountyLabelSizes() {
       refreshView();
     });
 
-    map.on(L.Draw.Event.DELETED, function() {
+    if (ENABLE_LANDCOVER_FEATURES) map.on(L.Draw.Event.DELETED, function() {
       saveCustomBloomPolygons();
       refreshView();
     });
 
-    exportCustomBloomBtn.addEventListener('click', () => {
+    if (ENABLE_LANDCOVER_FEATURES) exportCustomBloomBtn.addEventListener('click', () => {
       saveCustomBloomPolygons();
       const blob = new Blob([JSON.stringify(customBloomData, null, 2)], { type: 'application/geo+json' });
       const url = URL.createObjectURL(blob);
@@ -1782,10 +1790,10 @@ function updateCountyLabelSizes() {
       URL.revokeObjectURL(url);
     });
 
-    clearCustomBloomBtn.addEventListener('click', () => {
+    if (ENABLE_LANDCOVER_FEATURES) clearCustomBloomBtn.addEventListener('click', () => {
       if (!window.confirm('Clear all custom bloom override polygons?')) return;
       customBloomEditLayer.clearLayers();
-      let customBloomData = { type: 'FeatureCollection', features: [] };
+      customBloomData = { type: 'FeatureCollection', features: [] };
       localStorage.removeItem(CUSTOM_BLOOM_STORAGE_KEY);
       refreshView();
     });
