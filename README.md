@@ -1,72 +1,87 @@
-# MVBK Apiary Map
+# MVBK Apiary Manager
 
-A member-only Leaflet map for the Mohawk Valley Beekeepers Club, using Supabase authentication and PostGIS county boundaries.
+Member-only Leaflet map for the Mohawk Valley Beekeepers Club. Authentication and county data use Supabase. Landcover and DCA code are preserved but disabled through feature flags.
 
 ## Project structure
 
 ```text
-mvbk-apiary-map/
+mvbk-apiary-manager/
 ├── index.html
 ├── css/
-│   └── styles.css
+│   ├── main.css
+│   └── mobile.css
 ├── js/
 │   ├── config.js
-│   └── app.js
-└── README.md
+│   ├── auth.js
+│   ├── map.js
+│   ├── landcover.js
+│   ├── counties.js
+│   ├── forage.js
+│   ├── apiaries.js
+│   ├── ui.js
+│   ├── data.js
+│   └── events.js
+├── assets/
+│   ├── icons/
+│   └── images/
+└── data/
 ```
 
-- `index.html` contains the page structure and third-party library references.
-- `css/styles.css` contains all application styling.
-- `js/config.js` contains Supabase browser configuration and feature flags.
-- `js/app.js` contains authentication, map, data-loading, filtering, and rendering logic.
+The JavaScript files are loaded as ordered classic browser scripts. This conservative split keeps the existing app behavior while making each feature easier to find and edit. Do not arbitrarily reorder the script tags in `index.html`.
 
-## Run locally
+## Feature flags
 
-Do not open `index.html` directly with a `file://` URL. Start a local web server from the project folder.
-
-With Python:
-
-```bash
-python -m http.server 8000
-```
-
-Then open:
-
-```text
-http://localhost:8000
-```
-
-## Publish with GitHub Pages
-
-1. Create a new GitHub repository.
-2. Upload all files and folders from this project.
-3. Open **Settings → Pages**.
-4. Under **Build and deployment**, select **Deploy from a branch**.
-5. Select the `main` branch and `/ (root)` folder.
-6. Save and wait for the GitHub Pages URL to appear.
-
-## Supabase authentication setup
-
-In Supabase, open **Authentication → URL Configuration** and add both your local and GitHub Pages URLs as allowed redirect URLs. Examples:
-
-```text
-http://localhost:8000/
-https://YOUR-GITHUB-USERNAME.github.io/YOUR-REPOSITORY-NAME/
-```
-
-Set the GitHub Pages URL as the Site URL after launch if it is the primary deployment.
-
-## Security note
-
-The publishable/anon key in `js/config.js` is visible to site visitors by design. Protect `members`, `apiaries`, `counties`, and future tables with Supabase Row Level Security. Do not put a Supabase service-role key in this repository.
-
-## V1 feature flags
-
-Landcover/bloom analysis and DCA features remain preserved but disabled:
+Edit `js/config.js`:
 
 ```js
 ENABLE_LANDCOVER_FEATURES: false,
 ENABLE_DCA_FEATURES: false
 ```
 
-They can be revisited after the core Supabase apiary migration is complete.
+## Local testing
+
+Because the app uses `fetch()`, serve it over HTTP rather than opening `index.html` directly.
+
+With the VS Code Live Server extension, right-click `index.html` and select **Open with Live Server**.
+
+The current V1 code expects `apiaries.json` at the repository root. Keep your existing file there until apiaries are migrated to Supabase.
+
+## Rename the GitHub repository
+
+1. Open `https://github.com/geaston/mvbc`.
+2. Select **Settings**.
+3. Under **Repository name**, change `mvbc` to `mvbk-apiary-manager`.
+4. Click **Rename**.
+5. In the VS Code terminal, update the local remote:
+
+```bash
+git remote set-url origin https://github.com/geaston/mvbk-apiary-manager.git
+git remote -v
+```
+
+GitHub normally redirects the old URL, but updating the remote keeps the local project explicit.
+
+## Publish the refactor
+
+Copy these files into your cloned repository, then run:
+
+```bash
+git pull
+git add .
+git commit -m "Refactor app into feature components"
+git push
+```
+
+## GitHub Pages
+
+In GitHub, open **Settings → Pages**, choose **Deploy from a branch**, select `main` and `/ (root)`, then save.
+
+Add the deployed URL to the Supabase authentication redirect allowlist. It will normally be:
+
+```text
+https://geaston.github.io/mvbk-apiary-manager/
+```
+
+## Security
+
+The browser Supabase anon/publishable key is public by design. Protect member, county, and future apiary data with Supabase Row Level Security policies. Never place a Supabase service-role key in this repository.

@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MVBK Apiary Map</title>
+  <title>MVBK Apiary Manager</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
-  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/main.css" />
+  <link rel="stylesheet" href="./css/mobile.css" />
 </head>
 <body>
   <div id="authScreen" class="auth-screen">
     <div class="auth-card">
-      <h2>MVBK Apiary Map</h2>
+      <h2>MVBK Apiary Manager</h2>
       <p>Enter your email to receive a Supabase magic link. The map is only available to approved club member emails after sign-in.</p>
       <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" />
       <button id="magicLinkBtn" type="button">Send magic link</button>
@@ -26,7 +27,7 @@
 
   <div class="app">
     <aside id="sidebar" class="sidebar">
-      <h1>MVBK Apiary Map</h1>
+      <h1>MVBK Apiary Manager</h1>
       <p>Apiaries with forage rings, health information, and county context.</p>
       <button id="signOutBtn" class="signout-btn" type="button">Sign out</button>
 
@@ -251,6 +252,14 @@
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./js/config.js"></script>
-  <script src="./js/app.js"></script>
+  <script src="./js/auth.js"></script>
+  <script src="./js/map.js"></script>
+  <script src="./js/landcover.js"></script>
+  <script src="./js/counties.js"></script>
+  <script src="./js/forage.js"></script>
+  <script src="./js/apiaries.js"></script>
+  <script src="./js/ui.js"></script>
+  <script src="./js/data.js"></script>
+  <script src="./js/events.js"></script>
 </body>
 </html>

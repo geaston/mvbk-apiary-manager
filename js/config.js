@@ -1,4 +1,4 @@
-// Public client-side configuration for the MVBK Apiary Map.
+// Public client-side configuration for the MVBK Apiary Manager.
 // The Supabase publishable/anon key is designed to be used in browser apps.
 // Security must be enforced with Supabase Row Level Security policies.
 window.MVBK_CONFIG = Object.freeze({
