@@ -3,64 +3,106 @@
 
   function getClient() {
     if (window.supabaseClient) return window.supabaseClient;
+
     if (!window.supabase || !window.MVBK_CONFIG) {
       throw new Error('Supabase configuration is unavailable.');
     }
 
-    const url = window.MVBK_CONFIG.SUPABASE_URL || window.MVBK_CONFIG.supabaseUrl;
-    const key = window.MVBK_CONFIG.SUPABASE_ANON_KEY || window.MVBK_CONFIG.supabaseAnonKey;
+    const url = window.MVBK_CONFIG.SUPABASE_URL;
+    const key = window.MVBK_CONFIG.SUPABASE_ANON_KEY;
 
-    if (!url || !key) throw new Error('Supabase URL or anon key is missing.');
+    if (!url || !key) {
+      throw new Error('Supabase URL or anon key is missing.');
+    }
 
     window.supabaseClient = window.supabase.createClient(url, key);
     return window.supabaseClient;
   }
 
-  async function initPage() {
+  async function getAccessContext() {
     const client = getClient();
-    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    const { data: sessionData, error: sessionError } =
+      await client.auth.getSession();
 
     if (sessionError) throw sessionError;
-    if (!sessionData.session) {
+
+    const session = sessionData.session;
+    if (!session) {
+      return { client, session: null, isAdmin: false };
+    }
+
+    const { error: claimError } = await client.rpc('claim_member_account');
+    if (claimError) {
+      console.warn('Unable to claim member account:', claimError);
+    }
+
+    const { data: adminData, error: adminError } =
+      await client.rpc('is_club_admin');
+
+    if (adminError) {
+      console.warn('Unable to determine administrator role:', adminError);
+    }
+
+    return {
+      client,
+      session,
+      isAdmin: adminError ? false : adminData === true
+    };
+  }
+
+  async function initPage() {
+    const context = await getAccessContext();
+
+    if (!context.session) {
       window.location.href = '../index.html';
       throw new Error('Sign-in required.');
     }
 
-    await client.rpc('claim_member_account');
-
-    const { data: adminData, error: adminError } = await client.rpc('is_club_admin');
-    if (adminError) console.warn('Unable to determine admin role:', adminError);
-
-    const result = {
-      client,
-      session: sessionData.session,
-      isAdmin: adminData === true
-    };
-
-    renderNavigation(result);
-    return result;
+    renderNavigation(context);
+    return context;
   }
 
-  function renderNavigation({ isAdmin }) {
+  async function requireAdmin() {
+    const context = await initPage();
+
+    if (!context.isAdmin) {
+      renderAccessDenied();
+      throw new Error('Club administrator role required.');
+    }
+
+    return context;
+  }
+
+  function renderNavigation() {
     const host = document.getElementById('portalNav');
     if (!host) return;
 
-    const prefix = window.location.pathname.includes('/portal/') ? '..' : '.';
+    const currentPage = window.location.pathname.split('/').pop();
+    const link = (href, label, fileName) => {
+      const active = currentPage === fileName;
+      return `<a href="${href}"${active ? ' class="active" aria-current="page"' : ''}>${label}</a>`;
+    };
 
     host.innerHTML = `
       <nav class="portal-nav" aria-label="Main navigation">
-        <a class="portal-brand" href="${prefix}/portal/dashboard.html">
-          <span>🐝</span>
+        <a class="portal-brand" href="./dashboard.html">
+          <span aria-hidden="true">🐝</span>
           <strong>MVBK Apiary Manager</strong>
         </a>
-        <button class="nav-toggle" type="button" aria-expanded="false">Menu</button>
-        <div class="nav-links">
-          <a href="${prefix}/portal/dashboard.html">Dashboard</a>
-          <a href="${prefix}/index.html">Map</a>
-          <a href="${prefix}/portal/my-apiaries.html">My Apiaries</a>
-          <a href="${prefix}/portal/add-apiary.html">Add Apiary</a>
-          ${isAdmin ? `<a href="${prefix}/admin/pending-apiaries.html">Pending Review</a>` : ''}
-          ${isAdmin ? `<a href="${prefix}/admin/import-apiaries.html">Import</a>` : ''}
+
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="portalNavLinks">
+          Menu
+        </button>
+
+        <div class="nav-links" id="portalNavLinks">
+          ${link('./dashboard.html', 'Dashboard', 'dashboard.html')}
+          <a href="../index.html">Map</a>
+          ${link('./my-apiaries.html', 'My Apiaries', 'my-apiaries.html')}
+          ${link('./add-apiary.html', 'Add Apiary', 'add-apiary.html')}
           <button class="nav-signout" type="button">Sign out</button>
         </div>
       </nav>
@@ -68,15 +110,30 @@
 
     const toggle = host.querySelector('.nav-toggle');
     const links = host.querySelector('.nav-links');
-    toggle.addEventListener('click', () => {
+
+    toggle?.addEventListener('click', () => {
       const open = links.classList.toggle('open');
       toggle.setAttribute('aria-expanded', String(open));
     });
 
-    host.querySelector('.nav-signout').addEventListener('click', async () => {
+    host.querySelector('.nav-signout')?.addEventListener('click', async () => {
       await getClient().auth.signOut();
       window.location.href = '../index.html';
     });
+  }
+
+  function renderAccessDenied() {
+    const main = document.querySelector('main');
+    if (!main) return;
+
+    main.innerHTML = `
+      <section class="portal-card access-denied-card">
+        <p class="eyebrow">Restricted page</p>
+        <h1>Administrator access required</h1>
+        <p>Your account does not have permission to open this page.</p>
+        <a class="primary-button" href="./dashboard.html">Return to dashboard</a>
+      </section>
+    `;
   }
 
   function showFatalError(error) {
@@ -101,5 +158,12 @@
       .replaceAll("'", '&#039;');
   }
 
-  window.MVBKPortal = { getClient, initPage, showFatalError, escapeHtml };
+  window.MVBKPortal = {
+    getClient,
+    getAccessContext,
+    initPage,
+    requireAdmin,
+    showFatalError,
+    escapeHtml
+  };
 })();

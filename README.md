@@ -85,3 +85,7 @@ https://geaston.github.io/mvbk-apiary-manager/
 ## Security
 
 The browser Supabase anon/publishable key is public by design. Protect member, county, and future apiary data with Supabase Row Level Security policies. Never place a Supabase service-role key in this repository.
+
+## Clean baseline
+
+This version contains only the four working pages and uses consistent navigation across the map and member portal. Placeholder administrator pages are intentionally omitted. See `PROJECT_STRUCTURE.md`.

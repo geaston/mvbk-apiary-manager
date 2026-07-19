@@ -42,6 +42,32 @@ html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; }
     }
     .auth-card button { width: 100%; }
     .auth-message { margin-top: 12px; font-size: 13px; color: #444; min-height: 18px; }
+
+    .map-portal-nav {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 0 0 10px;
+    }
+    .map-portal-nav a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid #cfd8cf;
+      border-radius: 9px;
+      background: #fff;
+      color: #1b5e20;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .map-portal-nav a:hover,
+    .map-portal-nav a.active {
+      background: #eaf4eb;
+      border-color: #1b5e20;
+    }
     .signout-btn {
       width: 100%;
       margin: 6px 0 12px;

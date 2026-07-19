@@ -31,16 +31,6 @@
         <h2>Add Apiary</h2>
         <p>Submit a new yard and private map location.</p>
       </a>
-      <a id="adminReviewCard" class="dashboard-card admin-only" href="../admin/pending-apiaries.html" hidden>
-        <span class="card-icon">📋</span>
-        <h2>Pending Review</h2>
-        <p>Review new apiary submissions and assign display locations.</p>
-      </a>
-      <a id="adminImportCard" class="dashboard-card admin-only" href="../admin/import-apiaries.html" hidden>
-        <span class="card-icon">📥</span>
-        <h2>Import Apiaries</h2>
-        <p>Import existing JSON records into the approval workflow.</p>
-      </a>
     </section>
   </main>
 
@@ -48,12 +38,9 @@
   <script src="../js/config.js"></script>
   <script src="../js/portal-common.js"></script>
   <script>
-    MVBKPortal.initPage().then(({ session, isAdmin }) => {
+    MVBKPortal.initPage().then(({ session }) => {
       document.getElementById('welcomeText').textContent =
         `Signed in as ${session.user.email}.`;
-      document.querySelectorAll('.admin-only').forEach(el => {
-        el.hidden = !isAdmin;
-      });
     }).catch(MVBKPortal.showFatalError);
   </script>
 </body>
