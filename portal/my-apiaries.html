@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Apiaries | MVBK Apiary Manager</title>
+  <link rel="stylesheet" href="../css/portal.css">
+</head>
+<body>
+  <div id="portalNav"></div>
+
+  <main class="portal-main">
+    <header class="page-header split-header">
+      <div>
+        <p class="eyebrow">Member Portal</p>
+        <h1>My Apiaries</h1>
+        <p>Review your active, pending, and archived apiary records.</p>
+      </div>
+      <a class="primary-button" href="./add-apiary.html">Add Apiary</a>
+    </header>
+
+    <section class="summary-row">
+      <article><strong id="totalApiaries">0</strong><span>Total apiaries</span></article>
+      <article><strong id="activeApiaries">0</strong><span>Active</span></article>
+      <article><strong id="pendingApiaries">0</strong><span>Pending</span></article>
+      <article><strong id="totalHives">0</strong><span>Total hives</span></article>
+    </section>
+
+    <section class="portal-card">
+      <div class="table-toolbar">
+        <label>
+          <span class="sr-only">Filter apiaries</span>
+          <input id="apiarySearch" type="search" placeholder="Search my apiaries">
+        </label>
+        <select id="statusFilter" aria-label="Filter by status">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="pending">Pending</option>
+          <option value="inactive">Inactive</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+
+      <div id="apiaryList" class="apiary-list">
+        <p class="empty-state">Loading your apiaries…</p>
+      </div>
+      <p id="listMessage" class="form-message" role="status"></p>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/portal-common.js"></script>
+  <script src="../js/my-apiaries.js"></script>
+</body>
+</html>

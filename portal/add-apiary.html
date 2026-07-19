@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add Apiary | MVBK Apiary Manager</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="../css/portal.css">
+</head>
+<body>
+  <div id="portalNav"></div>
+
+  <main class="portal-main">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Member Portal</p>
+        <h1>Add an Apiary</h1>
+        <p>Submit a yard for administrator review. Your exact location is never shown on the member map.</p>
+      </div>
+    </header>
+
+    <form id="apiaryForm" class="portal-card form-grid" novalidate>
+      <section class="form-section">
+        <h2>Apiary information</h2>
+
+        <div class="field-grid two-column">
+          <label>
+            <span>Apiary name *</span>
+            <input name="apiary_name" maxlength="120" required>
+          </label>
+
+          <label>
+            <span>Owner / beekeeper name *</span>
+            <input name="owner_display_name" maxlength="120" required>
+          </label>
+
+          <label>
+            <span>Yard type *</span>
+            <select name="yard_type" required>
+              <option value="">Choose a yard type</option>
+              <option value="honey">Honey Yard</option>
+              <option value="nuc">Nuc Yard</option>
+              <option value="queen_mating">Queen Mating Yard</option>
+              <option value="drone_flood">Drone Flood Yard</option>
+              <option value="resource">Resource Yard</option>
+              <option value="educational">Educational Yard</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+
+          <label>
+            <span>County *</span>
+            <select name="county_name" id="countySelect" required>
+              <option value="">Loading counties…</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Number of hives *</span>
+            <input name="hive_count" type="number" min="0" max="1000" step="1" value="0" required>
+          </label>
+
+          <label>
+            <span>Latest mite count (%)</span>
+            <input name="mite_count" type="number" min="0" max="100" step="0.1">
+          </label>
+
+          <label>
+            <span>Honey produced this year (lb)</span>
+            <input name="honey_produced_lbs" type="number" min="0" step="0.1">
+          </label>
+        </div>
+
+        <div class="choice-grid">
+          <fieldset>
+            <legend>Treated this season *</legend>
+            <label><input type="radio" name="treated" value="true" required> Yes</label>
+            <label><input type="radio" name="treated" value="false" required> No</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>NYS inspected *</legend>
+            <label><input type="radio" name="nys_inspected" value="true" required> Yes</label>
+            <label><input type="radio" name="nys_inspected" value="false" required> No</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Mite-biter genetics *</legend>
+            <label><input type="radio" name="mite_biter" value="true" required> Yes</label>
+            <label><input type="radio" name="mite_biter" value="false" required> No</label>
+          </fieldset>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Private location</h2>
+        <p class="privacy-note">
+          Click the map at the exact apiary location. This point is stored privately for you and club administrators.
+          A separate privacy-safe point will be selected before the apiary appears on the member map.
+        </p>
+
+        <div class="location-toolbar">
+          <button id="useLocationButton" class="secondary-button" type="button">Use my current location</button>
+          <span id="locationText">No location selected.</span>
+        </div>
+
+        <div id="locationMap" class="location-map" aria-label="Private apiary location map"></div>
+        <input id="privateLat" name="private_lat" type="hidden">
+        <input id="privateLng" name="private_lng" type="hidden">
+      </section>
+
+      <div class="form-actions">
+        <a class="secondary-button" href="./my-apiaries.html">Cancel</a>
+        <button id="submitButton" class="primary-button" type="submit">Submit for approval</button>
+      </div>
+
+      <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
+    </form>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/portal-common.js"></script>
+  <script src="../js/add-apiary.js"></script>
+</body>
+</html>
